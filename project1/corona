@@ -1,0 +1,456 @@
+#!/bin/bash
+
+export POSIXLY_CORRECT=yes
+
+args=("$@")
+elements=${#args[@]}
+file='.csv'
+gzfile='.gz'
+bzfile='.bz2'
+gzip=false
+bzip=false
+filet=false
+
+if [[ "${args[0]}" == "-h" ]];
+then
+    echo "----------Commands----------"
+    echo "infected - spocita pocet nakazenych."
+    echo "merge - slouci nekolik souboru se zaznamy do jednoho, zachovavajici puvodni poradi."
+    echo "gender - vypise pocet nakazenych pro jednotliva pohlavi."
+    echo "age - vypise statistiku poctu nakazenych osob dle veku."
+    echo "daily - vzpise statistiku nakazenych osob pro jednotlive dny."
+    echo "monthly - vzpise statistiku nakazenych osob pro jednotlive mesice."
+    echo "yearly - vzpise statistiku nakazenych osob pro jednotlive roky."
+    echo "countries - vypise statistiku nakazenych osob pro jednotlive zeme nakazy."
+    echo "districts - vypise statistiku nakazenych osob pro jednotlive okresy."
+    echo "regions - vypise statistiku nakazenych osob pro jednotlive kraje."
+    echo "-a DATETIME - after: jsou uvazovany pouze zaznamy po tomtom datu (vcetne)."
+    echo "-b DATETIME - before: jsou uvazovany pouze zaznamy pred timto datem (vcetne)."
+    echo "-g GENDER - pouze zaznamy nakazenych osob daneho pohlavi. Muze byt M (muzi) nebo Z (zeny)."
+    echo "-s WIDTH - predstavuje sirku histogramu. Musi byt kladne cele cislo. Pokud neni parametr uveden, ridi se nastavenymi pozadavky."
+    echo "-h HELP - vypise napovedu s kratkym popisem kazdeho prikazu a prepinace."
+
+    exit 0
+fi
+
+for((i=0;i<elements;i++))
+do 
+    if [[ "${args[${i}]}" == *"$file" ]];
+    then
+        filet=true
+        csv_soubor=${args[${i}]}
+    fi
+done
+
+for((i=0;i<elements;i++))
+do 
+    if [[ "${args[${i}]}" == *"$gzfile" ]];
+    then
+        gzip=true
+        csv_soubor=${args[${i}]}
+    fi
+done
+
+for((i=0;i<elements;i++))
+do 
+    if [[ "${args[${i}]}" == *"$bzfile" ]];
+    then
+        bzip=true
+        csv_soubor=${args[${i}]}
+    fi
+done
+
+if [[ $gzip == true ]]; 
+then
+    OUTPUT=$(zcat "$csv_soubor")
+elif [[ $bzip == true ]];
+then
+    OUTPUT=$(bzcat "$csv_soubor")
+elif [[ $filet == true ]];
+then
+    OUTPUT=$(cat "$csv_soubor")
+else 
+    OUTPUT=$(cat)
+fi
+
+OUTPUT=$(echo "$OUTPUT" | awk -F',' '$3 < 0 && $3 != "" && $3 != "vek" { print "Invalid age: " $0 | "cat 1>&2"; next; } { print $0 }')
+
+dateafter()
+{   
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -v datum="$1" \
+    -F',' \
+    '{
+        if($2 >= datum)
+        {
+            print
+        }
+    }')
+}
+
+datebefore()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    -v datum="$1" \
+    '{
+        if($2 <= datum)
+        {
+            print
+        }
+    }')
+}
+
+gender()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    -v gender="$1" \
+    '{
+        if($4 == gender)
+        {
+            print
+        }
+    }')
+}
+
+# width()
+# {
+# ? 
+# }
+
+infected()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk \
+    -v nakazeni=0 \
+    'END{
+       print NR-1
+    }')
+}
+
+merge()
+{
+    shift 1
+    OUTPUT=$(cat $*)
+}
+
+gender2()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    '{
+        if($4 == "M")
+        {
+            male++
+        }
+        if($4 == "Z")
+        {
+            female++
+        }
+        if($4 == "")
+        {
+            none++
+        }
+    }
+    END{
+            {
+            printf ("M: %d\nZ: %d\nNone: %d\n", male, female, none)
+            }
+        }
+    ')
+}
+
+age()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    '
+    {
+        if($3 == "")
+        {
+            none++
+        }
+        else if(($3 >= 0) && ($3 <= 5))
+        {
+            skup1++
+        }
+        else if(($3 >= 6) && ($3 <= 15))
+        {
+            skup2++
+        }
+        else if(($3 >= 16) && ($3 <= 25))
+        {
+            skup3++
+        }
+        else if(($3 >= 26) && ($3 <= 35))
+        {
+            skup4++
+        }
+        else if(($3 >= 36) && ($3 <= 45))
+        {
+            skup5++
+        }
+        else if(($3 >= 46) && ($3 <= 55))
+        {
+            skup6++
+        }
+        else if(($3 >= 56) && ($3 <= 65))
+        {
+            skup7++
+        }
+        else if(($3 >= 66) && ($3 <= 75))
+        {
+            skup8++
+        }
+        else if(($3 >= 76) && ($3 <= 85))
+        {
+            skup9++
+        }
+        else if(($3 >= 86) && ($3 <= 95))
+        {
+            skup10++
+        }
+        else if(($3 >= 96) && ($3 <= 105))
+        {
+            skup11++
+        }
+        else if(($3 >= 105))
+        {
+            skup12++
+        }
+    }
+    END{
+            {
+            printf ("0-5   : %d\n", skup1)
+            printf ("6-15  : %d\n", skup2)
+            printf ("16-25 : %d\n", skup3)
+            printf ("26-35 : %d\n", skup4)
+            printf ("36-45 : %d\n", skup5)
+            printf ("46-55 : %d\n", skup6)
+            printf ("56-65 : %d\n", skup7)
+            printf ("66-75 : %d\n", skup8)
+            printf ("76-85 : %d\n", skup9)
+            printf ("86-95 : %d\n", skup10)
+            printf ("96-105: %d\n", skup11)
+            printf (">105  : %d\n", skup12)
+            printf ("None  : %d\n", none)
+            }
+        }
+    ')
+}
+
+daily()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    -v counter=0 \
+    -v help=0 \
+    -v same=0 \
+    '{
+        if(NR>1)
+        {
+            den = $2
+            if(help == 0)
+            {
+                help = den
+            } 
+            if(help == den)
+            {
+                counter++
+            }
+            else 
+            {   
+                if(help != "datum")
+                {
+                    printf ("%s: %d\n", help, counter)
+                    counter = 1
+                    same = 1
+                    help = den
+                }
+            }
+        }
+    }
+    END{
+        {
+            if(same == 1)
+            {
+                printf ("%s: %d\n", help, counter)
+            }
+        }
+    }
+    ')
+}
+
+monthly()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    -v counter=0 \
+    -v help=0 \
+    -v same=0 \
+    '{
+        if(NR>1)
+        {
+            split($2,mesicArr,"-")
+            holder=mesicArr[1] "-" mesicArr[2]
+            if(help == 0)
+            {
+                help = holder 
+            } 
+            if(help == holder)
+            { 
+                counter++
+            } else 
+            {
+                printf ("%s: %d\n", help, counter)
+                counter = 1
+                same = 1
+                help = holder
+            }
+        }
+    }
+    END{
+        {
+            if(same == 1)
+            {
+                printf ("%s: %d\n", help, counter)
+            }
+        }
+    }
+    ')
+}
+
+yearly()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    -v counter=0 \
+    -v help=0 \
+    -v same=0 \
+    '{
+        if(NR>1)
+        {
+            split($2,mesicArr,"-")
+            holder=mesicArr[1]
+            if(help == 0)
+            {
+                help = holder 
+            } 
+            if(help == holder)
+            { 
+                counter++
+            } else 
+            {
+                printf ("%s: %d\n", help, counter)
+                counter = 1
+                same = 1
+                help = holder
+            }
+        }
+    }
+    END{
+        {
+            if(same == 1)
+            {
+                printf ("%s: %d\n", help, counter)
+            }
+        }
+    }
+    ')
+}
+
+countries()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    '
+    $8 == "" || $8 == "CZ" || $8 == "nakaza_zeme_csu_kod" {next} { res[$8]++} END { for (i in res) {print i ": " res[i]  | "sort -t, -k8"} }')
+}
+
+disctricts()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    '
+    $6 == "" {none++
+    next}
+    $6 == "okres_lau_kod" {next} { res[$6]++} END { for (i in res) {print i ": " res[i] | "sort -t, -k6"} printf ("None: %d", none)}')
+}
+
+regions()
+{
+    OUTPUT=$(echo "$OUTPUT" | \
+    awk -F',' \
+    '
+    $5 == "" { none++ 
+    next}
+    $5 == "kraj_nuts_kod" {next} { res[$5]++} END { for (i in res) {print i ": " res[i] | "sort -t, -k5"} printf ("None: %d", none) }')
+}
+
+for i in "$@"; 
+do
+    case $1 in
+    -a)
+        shift
+        dateafter "$@"
+        shift
+        ;;
+    -b)
+        shift
+        datebefore "$@"
+        shift
+        ;;
+    -g)     
+        shift
+        gender "$@"
+        shift
+        ;;
+    -s)
+        shift
+        width "$@"
+        ;;
+    infected)
+        infected 
+        shift
+        ;;
+    merge)
+        merge "$@"
+        shift
+        ;;
+    gender)
+        gender2
+        shift
+        ;;
+    age)
+        age
+        shift
+        ;;
+    daily)
+        daily
+        shift
+        ;;
+    monthly)
+        monthly
+        shift
+        ;;
+    yearly)
+        yearly
+        shift
+        ;;
+    countries)
+        countries
+        shift
+        ;;
+    districts)
+        disctricts
+        shift
+        ;;
+    regions)
+        regions
+        shift
+        ;;
+    esac
+done
+
+echo "$OUTPUT"
